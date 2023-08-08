@@ -68,6 +68,20 @@ def render_test(args):
     tensorf.load(ckpt)
 
     logfolder = os.path.dirname(args.ckpt)
+
+    cp_module_names = ["density_line","app_line","basis_mat"]
+    vm_module_names = ["density_plane","density_line","app_plane","app_line","basis_mat"]
+    num_params = 0
+    for name, layer in tensorf.named_modules():
+        if name in cp_module_names:
+            if name == "basis_mat":
+                num_params += torch.numel(layer.weight)
+            else:
+                num_params += sum(p.numel() for p in layer if p.requires_grad)
+
+    print(f"num_params:{num_params}")
+    breakpoint()
+
     if args.render_train:
         os.makedirs(f'{logfolder}/imgs_train_all', exist_ok=True)
         train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=True)
