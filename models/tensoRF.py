@@ -136,9 +136,80 @@ class TensorVM(TensorBase):
         print(f'upsamping to {res_target}')
 
 
+
+
+        
+
+
+
+
+
+
+
 class TensorVMSplit(TensorBase):
     def __init__(self, aabb, gridSize, device, **kargs):
         super(TensorVMSplit, self).__init__(aabb, gridSize, device, **kargs)
+
+    @staticmethod
+    def quant(x,s,b):
+        y_grad = x
+        y_out = b + 4 * s * torch.clamp(torch.round(x - b/2 * s), -1, 1)
+
+        return (y_out-y_grad).detach() + y_grad
+
+    def get_plane_quant_params(self):
+
+        quant_param_list_density = []
+        for plane in self.density_plane:
+            plane_quant_param_list_density = []
+            for i in range(plane.shape[1]):
+                _min = torch.min(plane.squeeze(0)[i])
+                _mean = torch.mean(plane.squeeze(0)[i])
+                _std = torch.std(plane.squeeze(0)[i])
+                plane_quant_param_list_density.append([_min,_mean,_std])
+            
+            quant_param_list_density.append(plane_quant_param_list_density)
+        
+
+        quant_param_list_app = []
+        for plane in self.app_plane:
+            plane_quant_param_list_app = []
+            for i in range(plane.shape[1]):
+                _min = torch.min(plane.squeeze(0)[i])
+                _mean = torch.mean(plane.squeeze(0)[i])
+                _std = torch.std(plane.squeeze(0)[i])
+                plane_quant_param_list_app.append([_min,_mean,_std])
+            
+            quant_param_list_app.append(plane_quant_param_list_app)
+
+        self.quant_param_list_density = torch.FloatTensor(quant_param_list_density)
+        self.quant_param_list_app = torch.FloatTensor(quant_param_list_app)
+    
+
+    def get_quantized_weight(self):
+        for i, plane  in enumerate(self.density_plane):
+            for j in range(plane.shape[1]):
+                _s, _b = self.quant_param_list_density[i][j][0], self.quant_param_list_density[i][j][1]
+                quantized_plane = self.quant(plane[:,j,:,:],_s,_b).unsqueeze(1)
+
+                if j == 0:
+                    _tensor = quantized_plane
+                else:
+                    _tensor = torch.cat([_tensor, quantized_plane], dim = 1)
+            
+            self.density_plane[i] = torch.nn.Parameter(_tensor)
+
+        for i, plane in enumerate(self.app_plane):
+            for j in range(plane.shape[1]):
+                _s, _b = self.quant_param_list_app[i][j][0], self.quant_param_list_app[i][j][1]
+
+                quantized_plane = self.quant(plane[:,j,:,:],_s,_b).unsqueeze(1)
+                if j == 0:
+                    _tensor = quantized_plane
+                else:
+                    _tensor = torch.cat([_tensor, quantized_plane], dim = 1)
+            
+            self.app_plane[i] = torch.nn.Parameter(_tensor)
 
 
     def init_svd_volume(self, res, device):

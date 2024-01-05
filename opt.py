@@ -128,6 +128,17 @@ def config_parser(cmd=None):
                         help='N images to vis')
     parser.add_argument("--vis_every", type=int, default=10000,
                         help='frequency of visualize the image')
+    
+    # quantization options
+    parser.add_argument('--ternary_quantization', 
+                        type=bool,
+                        default=False,
+                        help='use ternary quantization on reconstruction')
+    parser.add_argument('--quantization_start', 
+                        type=int,
+                        default=10000,
+                        help='number of iter to start ternary quantization')
+
     if cmd is not None:
         return parser.parse_args(cmd)
     else:
